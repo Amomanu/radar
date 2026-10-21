@@ -7,20 +7,19 @@
 <style>
   :root {
     --bg: #0b0d10; --panel: #14181d; --line: #242a32; --fg: #e9edf1; --muted: #98a2ad;
-    --bad: #ff5d5d; --warn: #f0b43c; --ok: #4fc784;
+    --bad: #ff5d5d; --warn: #f0b43c; --ok: #4fc784; --accent: #5aa9e6;
     --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
     color-scheme: dark;
   }
   @media (prefers-color-scheme: light) {
     :root { --bg: #f6f7f9; --panel: #ffffff; --line: #e3e7ec; --fg: #16191d; --muted: #5d6670;
-      --bad: #d83a3a; --warn: #b97e12; --ok: #1f9d57; color-scheme: light; }
+      --bad: #d83a3a; --warn: #b97e12; --ok: #1f9d57; --accent: #2a6fb0; color-scheme: light; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
-  .wrap { max-width: 1100px; margin: 0 auto; padding: clamp(20px, 4vw, 40px) max(16px, env(safe-area-inset-left)) 64px max(16px, env(safe-area-inset-right)); display: flex; flex-direction: column; gap: 28px; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: clamp(20px, 4vw, 40px) max(16px, env(safe-area-inset-left)) 64px max(16px, env(safe-area-inset-right)); display: flex; flex-direction: column; gap: 24px; }
 
-  /* Header / wordmark */
   .head { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
   .brand { display: flex; align-items: center; gap: 16px; }
   .radar { width: 56px; height: 56px; flex: 0 0 auto; }
@@ -30,13 +29,17 @@
   .sub { color: var(--muted); margin: 8px 0 0; max-width: 62ch; }
   .stamp { color: var(--muted); font-size: 12px; margin-left: auto; text-align: right; }
 
-  /* KPI tiles */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+  .tab { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 10px 14px; color: var(--muted); font: inherit; font-weight: 500; cursor: pointer; }
+  .tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+  .tab .ct { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 6px; font-size: 12px; }
+
   .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: 14px; }
   .kpi { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; overflow: hidden; }
-  .kpi::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--accent, var(--muted)); }
-  .kpi .n { font-family: var(--serif); font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; color: var(--accent, var(--fg)); }
+  .kpi::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--a, var(--muted)); }
+  .kpi .n { font-family: var(--serif); font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; color: var(--a, var(--fg)); }
   .kpi .l { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; margin-top: 10px; }
-  .k-ahead { --accent: var(--fg); } .k-itw { --accent: var(--bad); } .k-poc { --accent: var(--warn); } .k-high { --accent: var(--bad); }
+  .k-ahead { --a: var(--fg); } .k-itw { --a: var(--bad); } .k-poc { --a: var(--warn); } .k-high { --a: var(--bad); }
 
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
   .card h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
@@ -53,10 +56,13 @@
   table { border-collapse: collapse; width: 100%; }
   th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { color: var(--muted); font-weight: 500; font-size: 12px; white-space: nowrap; }
+  td.n { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
   a { color: var(--fg); text-underline-offset: 2px; }
   .pill { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; text-transform: capitalize; white-space: nowrap; }
-  .why { max-width: 44ch; } .act { color: var(--muted); max-width: 32ch; }
-  .tag { display: inline-block; margin-left: 7px; font-size: 11px; color: var(--bad); border: 1px solid var(--bad); border-radius: 999px; padding: 0 7px; }
+  .why { max-width: 42ch; } .act { color: var(--muted); max-width: 30ch; }
+  .badges { display: flex; flex-wrap: wrap; gap: 5px; }
+  .badge { display: inline-block; font-size: 11px; border-radius: 999px; padding: 0 7px; border: 1px solid currentColor; white-space: nowrap; }
+  .b-ahead { color: var(--accent); } .b-kev { color: var(--bad); } .b-itw { color: var(--bad); } .b-poc { color: var(--warn); } .b-msrc { color: var(--muted); }
 
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { display: inline-flex; align-items: center; gap: 7px; background: color-mix(in srgb, var(--muted) 8%, transparent); border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; font-size: 12px; }
@@ -64,6 +70,7 @@
   .chip .c { color: var(--muted); font-variant-numeric: tabular-nums; }
   .empty { color: var(--muted); padding: 10px 0; }
   .foot { color: var(--muted); font-size: 12px; text-align: center; }
+  [hidden] { display: none !important; }
 
   @media (prefers-reduced-motion: no-preference) {
     .sweep { animation: spin 4.5s linear infinite; }
@@ -99,114 +106,152 @@
     <div class="stamp" id="stamp"></div>
   </header>
 
-  <section class="kpis">
-    <div class="kpi k-ahead"><div class="n" id="m-ahead">—</div><div class="l">Ahead of Microsoft</div></div>
-    <div class="kpi k-itw"><div class="n" id="m-itw">—</div><div class="l">Exploited in the wild</div></div>
-    <div class="kpi k-poc"><div class="n" id="m-poc">—</div><div class="l">Public PoC</div></div>
-    <div class="kpi k-high"><div class="n" id="m-high">—</div><div class="l">High or above</div></div>
-  </section>
+  <div class="tabs" role="tablist">
+    <button class="tab" id="tab-ahead" role="tab" aria-selected="true" aria-controls="panel-ahead">Ahead of Microsoft<span class="ct" id="ct-ahead"></span></button>
+    <button class="tab" id="tab-all" role="tab" aria-selected="false" aria-controls="panel-all">All findings<span class="ct" id="ct-all"></span></button>
+  </div>
 
-  <section class="card">
-    <h2>Threat ranking</h2>
-    <p class="note">Ahead-of-Microsoft findings by urgency score — circulating publicly but <strong>not yet in an MSRC advisory or CISA KEV</strong>, the signal that Defender already tracks them.</p>
-    <div class="rank" id="rank"></div>
-    <div class="empty" id="empty" hidden>Nothing ahead of Microsoft in this run. Everything new is already in an MSRC advisory or CISA KEV.</div>
-  </section>
+  <div id="panel-ahead" role="tabpanel" style="display:flex;flex-direction:column;gap:24px;">
+    <section class="kpis">
+      <div class="kpi k-ahead"><div class="n" id="m-ahead">—</div><div class="l">Ahead of Microsoft</div></div>
+      <div class="kpi k-itw"><div class="n" id="m-itw">—</div><div class="l">Exploited in the wild</div></div>
+      <div class="kpi k-poc"><div class="n" id="m-poc">—</div><div class="l">Public PoC</div></div>
+      <div class="kpi k-high"><div class="n" id="m-high">—</div><div class="l">High or above</div></div>
+    </section>
 
-  <section class="card">
-    <h2>Detail</h2>
-    <div class="scroll"><table>
-      <thead><tr><th>Severity</th><th>ID</th><th>Title</th><th>Why ahead</th><th>Suggested action</th></tr></thead>
-      <tbody id="detail"></tbody>
-    </table></div>
-  </section>
+    <section class="card">
+      <h2>Threat ranking</h2>
+      <p class="note">Ahead-of-Microsoft findings by urgency score — circulating publicly but <strong>not yet in an MSRC advisory or CISA KEV</strong>, the signal that Defender already tracks them.</p>
+      <div class="rank" id="rank"></div>
+      <div class="empty" id="empty-ahead" hidden>Nothing ahead of Microsoft in this run. Everything new is already in an MSRC advisory or CISA KEV.</div>
+    </section>
 
-  <section class="card">
-    <h2>Sources</h2>
-    <p class="note">Where this run looked, and whether each feed loaded.</p>
-    <div class="chips" id="chips"></div>
-  </section>
+    <section class="card">
+      <h2>Detail</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>Severity</th><th>ID</th><th>Title</th><th>Why ahead</th><th>Suggested action</th></tr></thead>
+        <tbody id="detail"></tbody>
+      </table></div>
+    </section>
+  </div>
+
+  <div id="panel-all" role="tabpanel" hidden>
+    <section class="card">
+      <h2>All findings this run</h2>
+      <p class="note">Every vulnerability the scan flagged and scored this run, highest first — including ones Microsoft already covers. <span style="color:var(--accent)">Ahead</span> = not yet in MSRC/KEV; <span style="color:var(--bad)">KEV</span> = in CISA KEV; <span style="color:var(--bad)">ITW</span> = exploited in the wild; <span style="color:var(--warn)">PoC</span> = public exploit; MSRC = Microsoft advisory published.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Score</th><th>Severity</th><th>ID</th><th>Title</th><th>Signals</th><th>Suggested action</th></tr></thead>
+        <tbody id="all"></tbody>
+      </table></div>
+      <div class="empty" id="empty-all" hidden>No findings in this run.</div>
+    </section>
+  </div>
 
   <p class="foot" id="foot"></p>
 </div>
 
 <script>
   var SEV = { critical: "--bad", high: "--bad", medium: "--warn", low: "--muted" };
+  var STATE = { findings: [], sources: [], meta: {} };
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
-  function sevVar(s) { return SEV[s] || "--muted"; }
+  function sv(s) { return SEV[s] || "--muted"; }
+  function sevPill(s) { var p = el("span", "pill", s || ""); var t = sv(s); p.style.color = "var(" + t + ")"; p.style.border = "1px solid var(" + t + ")"; return p; }
+  function titleCell(f) { var td = el("td"); if (f.url) { var a = el("a", null, f.title || f.key); a.href = f.url; a.target = "_blank"; a.rel = "noopener noreferrer"; td.appendChild(a); } else td.textContent = f.title || f.key; return td; }
 
   async function load() {
-    var data;
     try {
-      var r = await Promise.all(["findings", "counts", "sources", "meta"].map(function (n) {
+      var r = await Promise.all(["findings", "sources", "meta"].map(function (n) {
         return fetch("./data/" + n + ".json?t=" + Date.now()).then(function (x) { return x.ok ? x.json() : null; });
       }));
-      data = { findings: r[0] || [], counts: r[1] || [], sources: r[2] || [], meta: r[3] || {} };
-    } catch (e) {
-      document.getElementById("sub").textContent = "Could not load the latest data.";
-      return;
-    }
-    render(data);
+      STATE = { findings: r[0] || [], sources: r[1] || [], meta: r[2] || {} };
+    } catch (e) { document.getElementById("sub").textContent = "Could not load the latest data."; return; }
+    render();
   }
 
-  function num(counts, metric) { var row = counts.filter(function (c) { return c.metric === metric; })[0]; return row ? row.n : null; }
+  function render() {
+    var all = STATE.findings.slice().sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
+    var ahead = all.filter(function (f) { return f.ahead === "yes"; });
+    var itw = ahead.filter(function (f) { return f.itw; }).length;
+    var poc = ahead.filter(function (f) { return f.poc; }).length;
+    var high = ahead.filter(function (f) { return f.severity === "critical" || f.severity === "high"; }).length;
 
-  function render(d) {
-    var a = num(d.counts, "ahead"), itw = num(d.counts, "itw"), poc = num(d.counts, "poc"), high = num(d.counts, "high");
-    document.getElementById("m-ahead").textContent = a == null ? "—" : a;
-    document.getElementById("m-itw").textContent = itw == null ? "—" : itw;
-    document.getElementById("m-poc").textContent = poc == null ? "—" : poc;
-    document.getElementById("m-high").textContent = high == null ? "—" : high;
-    var parts = a == null ? [] : [a + (a === 1 ? " finding" : " findings") + " ahead of Microsoft this run"];
+    document.getElementById("m-ahead").textContent = ahead.length;
+    document.getElementById("m-itw").textContent = itw;
+    document.getElementById("m-poc").textContent = poc;
+    document.getElementById("m-high").textContent = high;
+    document.getElementById("ct-ahead").textContent = ahead.length;
+    document.getElementById("ct-all").textContent = all.length;
+
+    var parts = [ahead.length + (ahead.length === 1 ? " finding" : " findings") + " ahead of Microsoft this run"];
     if (itw) parts.push(itw + " exploited in the wild");
     if (poc) parts.push(poc + " with a public PoC");
-    document.getElementById("sub").textContent = parts.length ? parts.join(" · ") + "." : "No findings in the latest run.";
+    document.getElementById("sub").textContent = ahead.length ? parts.join(" · ") + "." : "Nothing ahead of Microsoft in the latest run.";
+    if (STATE.meta.run_at) document.getElementById("stamp").textContent = "Run " + STATE.meta.run_at.replace("T", " ").replace("Z", " UTC");
+    if (STATE.meta.built_at) document.getElementById("foot").textContent = "Updated " + STATE.meta.built_at.replace("T", " ").replace("+00:00", " UTC");
 
-    if (d.meta && d.meta.run_at) {
-      document.getElementById("stamp").textContent = "Run " + d.meta.run_at.replace("T", " ").replace("Z", " UTC");
-    }
-
-    var rows = d.findings.slice().sort(function (x, y) { return (y.score || 0) - (x.score || 0); });
-    document.getElementById("empty").hidden = rows.length > 0;
-
-    var rank = document.getElementById("rank");
-    rank.replaceChildren();
-    rows.forEach(function (f) {
+    // Ahead tab: ranking + detail
+    document.getElementById("empty-ahead").hidden = ahead.length > 0;
+    var rank = document.getElementById("rank"); rank.replaceChildren();
+    ahead.forEach(function (f) {
       var row = el("div", "row");
       var k = el("div", "k", f.key); k.title = f.title || f.key;
-      if (f.itw) k.appendChild(el("span", "tag", "ITW"));
+      if (f.itw) { var tg = el("span", "badge b-itw", "ITW"); tg.style.marginLeft = "7px"; k.appendChild(tg); }
       var track = el("div", "track"); var fill = el("div", "fill");
-      var tok = sevVar(f.severity);
-      fill.style.background = "linear-gradient(90deg, color-mix(in srgb, var(" + tok + ") 55%, transparent), var(" + tok + "))";
+      var t = sv(f.severity);
+      fill.style.background = "linear-gradient(90deg, color-mix(in srgb, var(" + t + ") 55%, transparent), var(" + t + "))";
       track.appendChild(fill);
-      var sc = el("div", "sc", f.score);
-      row.append(k, track, sc); rank.appendChild(row);
+      row.append(k, track, el("div", "sc", f.score)); rank.appendChild(row);
       requestAnimationFrame(function () { fill.style.width = Math.max(2, Math.min(100, f.score || 0)) + "%"; });
     });
-
-    var body = document.getElementById("detail");
-    body.replaceChildren();
-    rows.forEach(function (f) {
+    var detail = document.getElementById("detail"); detail.replaceChildren();
+    ahead.forEach(function (f) {
       var tr = el("tr");
-      var sev = el("td"); var pill = el("span", "pill", f.severity || "");
-      var tok = sevVar(f.severity); pill.style.color = "var(" + tok + ")"; pill.style.border = "1px solid var(" + tok + ")";
-      sev.appendChild(pill); tr.appendChild(sev);
+      var sev = el("td"); sev.appendChild(sevPill(f.severity)); tr.appendChild(sev);
       tr.appendChild(el("td", null, f.key));
-      var title = el("td");
-      if (f.url) { var link = el("a", null, f.title || f.key); link.href = f.url; link.target = "_blank"; link.rel = "noopener noreferrer"; title.appendChild(link); }
-      else title.textContent = f.title || f.key;
-      tr.appendChild(title);
+      tr.appendChild(titleCell(f));
       tr.appendChild(el("td", "why", f.why));
+      tr.appendChild(el("td", "act", f.action));
+      detail.appendChild(tr);
+    });
+
+    // All tab
+    document.getElementById("empty-all").hidden = all.length > 0;
+    var body = document.getElementById("all"); body.replaceChildren();
+    all.forEach(function (f) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "n", f.score));
+      var sev = el("td"); sev.appendChild(sevPill(f.severity)); tr.appendChild(sev);
+      tr.appendChild(el("td", null, f.key));
+      tr.appendChild(titleCell(f));
+      var sig = el("td"); var badges = el("div", "badges");
+      if (f.ahead === "yes") badges.appendChild(el("span", "badge b-ahead", "Ahead"));
+      if (f.kev) badges.appendChild(el("span", "badge b-kev", "KEV"));
+      if (f.itw) badges.appendChild(el("span", "badge b-itw", "ITW"));
+      if (f.poc) badges.appendChild(el("span", "badge b-poc", "PoC"));
+      if (f.msrc === true) badges.appendChild(el("span", "badge b-msrc", "MSRC"));
+      sig.appendChild(badges); tr.appendChild(sig);
       tr.appendChild(el("td", "act", f.action));
       body.appendChild(tr);
     });
 
+    // Sources tab lives only on the ahead panel footer — show chips under detail? keep simple: append to ahead panel
+    renderSources();
+  }
+
+  function renderSources() {
+    var host = document.getElementById("sources-card");
+    if (!host) {
+      host = el("section", "card"); host.id = "sources-card";
+      host.appendChild(el("h2", null, "Sources"));
+      host.appendChild(el("p", "note", "Where this run looked, and whether each feed loaded."));
+      host.appendChild(el("div", "chips")); host.querySelector(".chips").id = "chips";
+      document.getElementById("panel-ahead").appendChild(host);
+    }
     var cc = { ok: "--ok", failed: "--bad", skipped: "--muted" };
     var order = { failed: 0, skipped: 1, ok: 2 };
-    var chips = document.getElementById("chips");
-    chips.replaceChildren();
-    d.sources.slice().sort(function (x, y) {
-      return (order[x.status] || 0) - (order[y.status] || 0) || String(x.name).localeCompare(y.name);
+    var chips = document.getElementById("chips"); chips.replaceChildren();
+    STATE.sources.slice().sort(function (a, b) {
+      return (order[a.status] || 0) - (order[b.status] || 0) || String(a.name).localeCompare(b.name);
     }).forEach(function (s) {
       var chip = el("span", "chip");
       var dot = el("span", "dot"); dot.style.background = "var(" + (cc[s.status] || "--muted") + ")";
@@ -214,11 +259,19 @@
       if (s.new) chip.appendChild(el("span", "c", "+" + s.new));
       chips.appendChild(chip);
     });
-
-    if (d.meta && d.meta.built_at) {
-      document.getElementById("foot").textContent = "Dashboard updated " + d.meta.built_at.replace("T", " ").replace("+00:00", " UTC");
-    }
   }
+
+  function selectTab(which) {
+    var a = which === "all";
+    document.getElementById("tab-ahead").setAttribute("aria-selected", String(!a));
+    document.getElementById("tab-all").setAttribute("aria-selected", String(a));
+    document.getElementById("panel-ahead").hidden = a;
+    document.getElementById("panel-all").hidden = !a;
+    if (location.hash.slice(1) !== which) history.replaceState(null, "", "#" + which);
+  }
+  document.getElementById("tab-ahead").addEventListener("click", function () { selectTab("ahead"); });
+  document.getElementById("tab-all").addEventListener("click", function () { selectTab("all"); });
+  selectTab(location.hash.slice(1) === "all" ? "all" : "ahead");
 
   load();
   setInterval(load, 10 * 60 * 1000);

@@ -32,33 +32,35 @@ def main():
     if args.findings:
         src = args.findings
     else:
-        files = sorted(glob.glob(os.path.join(args.runs, "*", "findings.json")), key=os.path.getmtime)
-        if not files:
+        cands = glob.glob(os.path.join(args.runs, "*", "findings.json"))
+        if not cands:
             sys.exit("no runs found")
-        src = files[-1]
+
+        def _run_at(p):  # pick the chronologically latest run, not the latest-downloaded file
+            try:
+                return json.load(open(p, encoding="utf-8")).get("run_at") or ""
+            except (OSError, json.JSONDecodeError):
+                return ""
+        src = max(cands, key=_run_at)
     doc = json.load(open(src, encoding="utf-8"))
 
+    # Every scored finding, with flags. The page filters ahead=="yes" for the Ahead tab
+    # and shows them all on the All findings tab.
     rows = []
     for f in doc.get("findings", []):
-        if not is_ahead(f):
-            continue
         sig = f.get("signals") or {}
         rows.append({
             "key": f.get("key", ""), "title": f.get("title", ""),
             "score": f.get("score", 0), "severity": f.get("severity", ""),
             "why": f.get("why_ahead", ""), "action": f.get("action", ""),
             "url": (f.get("sources") or [{}])[0].get("url", ""),
+            "ahead": "yes" if is_ahead(f) else "",
             "itw": "yes" if sig.get("exploited_itw") else "",
             "poc": "yes" if sig.get("poc_public") else "",
+            "kev": "yes" if sig.get("kev") else "",
+            "msrc": sig.get("msrc_published"),
         })
     rows.sort(key=lambda r: -r["score"])
-
-    counts = [
-        {"metric": "ahead", "n": len(rows)},
-        {"metric": "itw", "n": sum(1 for r in rows if r["itw"])},
-        {"metric": "poc", "n": sum(1 for r in rows if r["poc"])},
-        {"metric": "high", "n": sum(1 for r in rows if r["severity"] in ("critical", "high"))},
-    ]
     def status(s):
         if s.get("ok"):
             return "ok"
@@ -72,12 +74,12 @@ def main():
 
     meta = {"run_at": doc.get("run_at"), "built_at": __import__("datetime").datetime.now(
         __import__("datetime").timezone.utc).isoformat(timespec="seconds")}
-    for name, obj in (("findings", rows), ("counts", counts), ("sources", srcs), ("meta", meta)):
+    for name, obj in (("findings", rows), ("sources", srcs), ("meta", meta)):
         json.dump(obj, open(os.path.join(args.out, f"{name}.json"), "w", encoding="utf-8"), ensure_ascii=False)
 
+    ahead = sum(1 for r in rows if r["ahead"])
     print("run_at", doc.get("run_at"))
-    print("ahead-of-Microsoft findings", len(rows), "of", len(doc.get("findings", [])))
-    print("counts", {c["metric"]: c["n"] for c in counts})
+    print("findings", len(rows), "| ahead of Microsoft", ahead)
 
 
 if __name__ == "__main__":
