@@ -64,6 +64,13 @@
   .badge { display: inline-block; font-size: 11px; border-radius: 999px; padding: 0 7px; border: 1px solid currentColor; white-space: nowrap; }
   .b-ahead { color: var(--accent); } .b-kev { color: var(--bad); } .b-itw { color: var(--bad); } .b-poc { color: var(--warn); } .b-msrc { color: var(--muted); }
 
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .controls input, .controls select { background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font: inherit; }
+  .controls input { flex: 1 1 220px; min-width: 0; }
+  .controls .muted { color: var(--muted); font-size: 12px; }
+  .hot { display: inline-block; width: 6px; height: 6px; border-radius: 999px; background: var(--warn); margin-right: 7px; vertical-align: middle; }
+  td.when { white-space: nowrap; color: var(--muted); font-size: 12px; }
+  td.cve { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { display: inline-flex; align-items: center; gap: 7px; background: color-mix(in srgb, var(--muted) 8%, transparent); border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; font-size: 12px; }
   .dot { width: 7px; height: 7px; border-radius: 999px; flex: 0 0 auto; }
@@ -109,6 +116,7 @@
   <div class="tabs" role="tablist">
     <button class="tab" id="tab-ahead" role="tab" aria-selected="true" aria-controls="panel-ahead">Ahead of Microsoft<span class="ct" id="ct-ahead"></span></button>
     <button class="tab" id="tab-all" role="tab" aria-selected="false" aria-controls="panel-all">All findings<span class="ct" id="ct-all"></span></button>
+    <button class="tab" id="tab-items" role="tab" aria-selected="false" aria-controls="panel-items">Everything<span class="ct" id="ct-items"></span></button>
   </div>
 
   <div id="panel-ahead" role="tabpanel" style="display:flex;flex-direction:column;gap:24px;">
@@ -147,6 +155,22 @@
     </section>
   </div>
 
+  <div id="panel-items" role="tabpanel" hidden>
+    <section class="card">
+      <h2>Everything caught</h2>
+      <p class="note">Every item the scanner pulled over the last ~2 days, newest first — mostly the raw CVE feed, plus disclosures, advisories, PoCs and chatter. <span class="hot"></span> marks items the quick-rank flagged as notable. Search, or filter by source.</p>
+      <div class="controls">
+        <input id="item-search" type="search" placeholder="Search title, source or CVE…" aria-label="Search items">
+        <select id="item-source" aria-label="Filter by source"></select>
+        <span class="muted" id="item-count"></span>
+      </div>
+      <div class="scroll"><table>
+        <thead><tr><th>When</th><th>Source</th><th>CVEs</th><th>Title</th></tr></thead>
+        <tbody id="items"></tbody>
+      </table></div>
+    </section>
+  </div>
+
   <p class="foot" id="foot"></p>
 </div>
 
@@ -160,10 +184,10 @@
 
   async function load() {
     try {
-      var r = await Promise.all(["findings", "sources", "meta"].map(function (n) {
+      var r = await Promise.all(["findings", "sources", "meta", "items"].map(function (n) {
         return fetch("./data/" + n + ".json?t=" + Date.now()).then(function (x) { return x.ok ? x.json() : null; });
       }));
-      STATE = { findings: r[0] || [], sources: r[1] || [], meta: r[2] || {} };
+      STATE = { findings: r[0] || [], sources: r[1] || [], meta: r[2] || {}, items: r[3] || [] };
     } catch (e) { document.getElementById("sub").textContent = "Could not load the latest data."; return; }
     render();
   }
@@ -234,8 +258,8 @@
       body.appendChild(tr);
     });
 
-    // Sources tab lives only on the ahead panel footer — show chips under detail? keep simple: append to ahead panel
     renderSources();
+    renderItems();
   }
 
   function renderSources() {
@@ -261,17 +285,61 @@
     });
   }
 
+  function fmtWhen(s) {
+    if (!s) return "";
+    var d = new Date(s);
+    if (isNaN(d.getTime())) return s.slice(5, 16).replace("T", " ");
+    return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+  var itemSourcesInit = false;
+  function renderItems() {
+    var items = STATE.items || [];
+    document.getElementById("ct-items").textContent = items.length;
+    var sel = document.getElementById("item-source");
+    if (!itemSourcesInit && items.length) {
+      var srcs = Array.from(new Set(items.map(function (i) { return i.source; }))).sort();
+      sel.replaceChildren(new Option("All sources", ""));
+      srcs.forEach(function (s) { sel.appendChild(new Option(s, s)); });
+      itemSourcesInit = true;
+    }
+    var q = (document.getElementById("item-search").value || "").trim().toLowerCase();
+    var src = sel.value;
+    var rows = items.filter(function (i) {
+      if (src && i.source !== src) return false;
+      if (!q) return true;
+      return (i.title + " " + i.source + " " + (i.cves || []).join(" ")).toLowerCase().indexOf(q) >= 0;
+    });
+    var body = document.getElementById("items");
+    var frag = document.createDocumentFragment();
+    rows.forEach(function (i) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "when", fmtWhen(i.published || i.seen_at)));
+      tr.appendChild(el("td", null, i.source));
+      tr.appendChild(el("td", "cve", (i.cves || []).join(", ")));
+      var title = el("td");
+      if ((i.rank || 0) >= 45) title.appendChild(el("span", "hot"));
+      if (i.url) { var a = el("a", null, i.title || "(untitled)"); a.href = i.url; a.target = "_blank"; a.rel = "noopener noreferrer"; title.appendChild(a); }
+      else title.appendChild(document.createTextNode(i.title || ""));
+      tr.appendChild(title);
+      frag.appendChild(tr);
+    });
+    body.replaceChildren(frag);
+    document.getElementById("item-count").textContent = "showing " + rows.length + " of " + items.length;
+  }
+  document.getElementById("item-search").addEventListener("input", renderItems);
+  document.getElementById("item-source").addEventListener("change", renderItems);
+
+  var TABS = ["ahead", "all", "items"];
   function selectTab(which) {
-    var a = which === "all";
-    document.getElementById("tab-ahead").setAttribute("aria-selected", String(!a));
-    document.getElementById("tab-all").setAttribute("aria-selected", String(a));
-    document.getElementById("panel-ahead").hidden = a;
-    document.getElementById("panel-all").hidden = !a;
+    if (TABS.indexOf(which) < 0) which = "ahead";
+    TABS.forEach(function (t) {
+      document.getElementById("tab-" + t).setAttribute("aria-selected", String(t === which));
+      document.getElementById("panel-" + t).hidden = t !== which;
+    });
     if (location.hash.slice(1) !== which) history.replaceState(null, "", "#" + which);
   }
-  document.getElementById("tab-ahead").addEventListener("click", function () { selectTab("ahead"); });
-  document.getElementById("tab-all").addEventListener("click", function () { selectTab("all"); });
-  selectTab(location.hash.slice(1) === "all" ? "all" : "ahead");
+  TABS.forEach(function (t) { document.getElementById("tab-" + t).addEventListener("click", function () { selectTab(t); }); });
+  selectTab(location.hash.slice(1));
 
   load();
   setInterval(load, 10 * 60 * 1000);
