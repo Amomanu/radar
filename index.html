@@ -129,9 +129,9 @@
 
     <section class="card">
       <h2>Threat ranking</h2>
-      <p class="note">Ahead-of-Microsoft findings by urgency score — circulating publicly but <strong>not yet in an MSRC advisory or CISA KEV</strong>, the signal that Defender already tracks them.</p>
+      <p class="note">Ahead-of-Microsoft findings from the last 24 hours (both daily runs), by urgency score — circulating publicly but <strong>not yet in an MSRC advisory or CISA KEV</strong>, the signal that Defender already tracks them.</p>
       <div class="rank" id="rank"></div>
-      <div class="empty" id="empty-ahead" hidden>Nothing ahead of Microsoft in this run. Everything new is already in an MSRC advisory or CISA KEV.</div>
+      <div class="empty" id="empty-ahead" hidden>Nothing ahead of Microsoft in the last 24 hours. Everything new is already in an MSRC advisory or CISA KEV.</div>
     </section>
 
     <section class="card">
@@ -145,13 +145,13 @@
 
   <div id="panel-all" role="tabpanel" hidden>
     <section class="card">
-      <h2>All findings this run</h2>
-      <p class="note">Every vulnerability the scan flagged and scored this run, highest first — including ones Microsoft already covers. <span style="color:var(--accent)">Ahead</span> = not yet in MSRC/KEV; <span style="color:var(--bad)">KEV</span> = in CISA KEV; <span style="color:var(--bad)">ITW</span> = exploited in the wild; <span style="color:var(--warn)">PoC</span> = public exploit; MSRC = Microsoft advisory published.</p>
+      <h2>All findings, last 24 hours</h2>
+      <p class="note">Every vulnerability the scan flagged and scored in the last 24 hours (both daily runs), highest first — including ones Microsoft already covers. If a later run reports new details, the row shows the latest. <span style="color:var(--accent)">Ahead</span> = not yet in MSRC/KEV; <span style="color:var(--bad)">KEV</span> = in CISA KEV; <span style="color:var(--bad)">ITW</span> = exploited in the wild; <span style="color:var(--warn)">PoC</span> = public exploit; MSRC = Microsoft advisory published.</p>
       <div class="scroll"><table>
-        <thead><tr><th>Score</th><th>Severity</th><th>ID</th><th>Title</th><th>Signals</th><th>Suggested action</th></tr></thead>
+        <thead><tr><th>Score</th><th>Seen</th><th>Severity</th><th>ID</th><th>Title</th><th>Signals</th><th>Suggested action</th></tr></thead>
         <tbody id="all"></tbody>
       </table></div>
-      <div class="empty" id="empty-all" hidden>No findings in this run.</div>
+      <div class="empty" id="empty-all" hidden>No findings in the last 24 hours.</div>
     </section>
   </div>
 
@@ -206,11 +206,11 @@
     document.getElementById("ct-ahead").textContent = ahead.length;
     document.getElementById("ct-all").textContent = all.length;
 
-    var parts = [ahead.length + (ahead.length === 1 ? " finding" : " findings") + " ahead of Microsoft this run"];
+    var parts = [ahead.length + (ahead.length === 1 ? " finding" : " findings") + " ahead of Microsoft in the last 24 hours"];
     if (itw) parts.push(itw + " exploited in the wild");
     if (poc) parts.push(poc + " with a public PoC");
-    document.getElementById("sub").textContent = ahead.length ? parts.join(" · ") + "." : "Nothing ahead of Microsoft in the latest run.";
-    if (STATE.meta.run_at) document.getElementById("stamp").textContent = "Run " + STATE.meta.run_at.replace("T", " ").replace("Z", " UTC");
+    document.getElementById("sub").textContent = ahead.length ? parts.join(" · ") + "." : "Nothing ahead of Microsoft in the last 24 hours.";
+    if (STATE.meta.run_at) document.getElementById("stamp").textContent = "Last run " + STATE.meta.run_at.replace("T", " ").replace("Z", " UTC");
     if (STATE.meta.built_at) document.getElementById("foot").textContent = "Updated " + STATE.meta.built_at.replace("T", " ").replace("+00:00", " UTC");
 
     // Ahead tab: ranking + detail
@@ -244,6 +244,7 @@
     all.forEach(function (f) {
       var tr = el("tr");
       tr.appendChild(el("td", "n", f.score));
+      tr.appendChild(el("td", "when", fmtWhen(f.last_seen)));
       var sev = el("td"); sev.appendChild(sevPill(f.severity)); tr.appendChild(sev);
       tr.appendChild(el("td", null, f.key));
       tr.appendChild(titleCell(f));

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Build the dashboard's data files from the latest scan.
 
-Writes findings.json (every scored finding, flagged ahead/kev/itw/poc/msrc),
-sources.json, and meta.json. With --items, also maintains items.json: a rolling
-2-day list of every raw item the scanner caught, for the "Everything" tab.
+Writes findings.json (every scored finding from the last two runs, flagged
+ahead/kev/itw/poc/msrc, latest values winning), sources.json and meta.json. With
+--items, also maintains items.json: a rolling 2-day list of every raw item the
+scanner caught, for the "Everything" tab.
 
     python dashboard_data.py --out site/data
     python dashboard_data.py --findings <f.json> --items <items.json> --out /workspace/radar/data
@@ -18,6 +19,8 @@ from datetime import datetime, timedelta, timezone
 
 ITEM_WINDOW_DAYS = 2
 ITEM_CAP = 800
+# Runs fire 8h and 16h apart, so 23h back from the current run spans exactly the last two runs.
+FINDING_WINDOW_HOURS = 23
 
 HOT_RE = re.compile(r"in the wild|actively exploited|exploited|0-?day|zero[- ]day", re.I)
 POC_RE = re.compile(r"\bpoc\b|proof[- ]of[- ]concept|exploit", re.I)
@@ -51,6 +54,43 @@ def load_json(path, default):
         return json.load(open(path, encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return default
+
+
+def parse_ts(value):
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def merge_findings(out_dir, rows, run_at):
+    """Fold this run's findings into the published list; keep what the last two runs reported."""
+    now = datetime.now(timezone.utc)
+    anchor = parse_ts(run_at) or now
+    seen = run_at or now.isoformat(timespec="seconds")
+    # Rows written before last_seen existed belong to whichever run wrote them.
+    legacy = load_json(os.path.join(out_dir, "meta.json"), {}).get("run_at") or seen
+    by = {}
+    for r in load_json(os.path.join(out_dir, "findings.json"), []):
+        k = r.get("key") or r.get("title")
+        if k:
+            r.setdefault("last_seen", legacy)
+            r.setdefault("first_seen", r["last_seen"])
+            by[k] = r
+    for r in rows:
+        k = r.get("key") or r.get("title")
+        if not k:
+            continue
+        r["first_seen"] = by.get(k, {}).get("first_seen") or seen
+        r["last_seen"] = seen
+        by[k] = r
+    cutoff = anchor - timedelta(hours=FINDING_WINDOW_HOURS)
+    kept = [r for r in by.values() if (parse_ts(r.get("last_seen")) or anchor) >= cutoff]
+    kept.sort(key=lambda r: -(r.get("score") or 0))
+    return kept
 
 
 def merge_items(out_dir, items_path):
@@ -128,10 +168,12 @@ def main():
     meta = {"run_at": doc.get("run_at"),
             "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
 
-    for name, obj in (("findings", rows), ("sources", srcs), ("meta", meta)):
+    merged = merge_findings(args.out, rows, doc.get("run_at"))
+    for name, obj in (("findings", merged), ("sources", srcs), ("meta", meta)):
         json.dump(obj, open(os.path.join(args.out, f"{name}.json"), "w", encoding="utf-8"), ensure_ascii=False)
 
-    line = f"run_at {doc.get('run_at')} | findings {len(rows)} | ahead {sum(1 for r in rows if r['ahead'])}"
+    line = (f"run_at {doc.get('run_at')} | this run {len(rows)} | published (last day) {len(merged)}"
+            f" | ahead {sum(1 for r in merged if r['ahead'])}")
     if args.items:
         line += f" | items (rolling {ITEM_WINDOW_DAYS}d) {merge_items(args.out, args.items)}"
     print(line)
