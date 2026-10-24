@@ -18,7 +18,7 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
-  .wrap { max-width: 1100px; margin: 0 auto; padding: clamp(20px, 4vw, 40px) max(16px, env(safe-area-inset-left)) 64px max(16px, env(safe-area-inset-right)); display: flex; flex-direction: column; gap: 24px; }
+  .wrap { max-width: 1400px; margin: 0 auto; padding: clamp(20px, 4vw, 40px) max(16px, env(safe-area-inset-left)) 64px max(16px, env(safe-area-inset-right)); display: flex; flex-direction: column; gap: 24px; }
 
   .head { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
   .brand { display: flex; align-items: center; gap: 16px; }
@@ -60,6 +60,10 @@
   a { color: var(--fg); text-underline-offset: 2px; }
   .pill { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; text-transform: capitalize; white-space: nowrap; }
   .why { max-width: 42ch; } .act { color: var(--muted); max-width: 30ch; }
+  .app { max-width: 24ch; } .app .vend { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .oscell { max-width: 16ch; } .badge.b-os { color: var(--fg); border-color: var(--line); }
+  td.na { color: var(--muted); }
+  td.idc { min-width: 18ch; } td.ttl { min-width: 26ch; }
   .badges { display: flex; flex-wrap: wrap; gap: 5px; }
   .badge { display: inline-block; font-size: 11px; border-radius: 999px; padding: 0 7px; border: 1px solid currentColor; white-space: nowrap; }
   .b-ahead { color: var(--accent); } .b-kev { color: var(--bad); } .b-itw { color: var(--bad); } .b-poc { color: var(--warn); } .b-msrc { color: var(--muted); }
@@ -137,7 +141,7 @@
     <section class="card">
       <h2>Detail</h2>
       <div class="scroll"><table>
-        <thead><tr><th>Severity</th><th>ID</th><th>Title</th><th>Why ahead</th><th>Suggested action</th></tr></thead>
+        <thead><tr><th>Severity</th><th>ID</th><th>Title</th><th>Target app</th><th>Target OS</th><th>Why ahead</th><th>Suggested action</th></tr></thead>
         <tbody id="detail"></tbody>
       </table></div>
     </section>
@@ -148,7 +152,7 @@
       <h2>All findings, last 24 hours</h2>
       <p class="note">Every vulnerability the scan flagged and scored in the last 24 hours (both daily runs), highest first — including ones Microsoft already covers. If a later run reports new details, the row shows the latest. <span style="color:var(--accent)">Ahead</span> = not yet in MSRC/KEV; <span style="color:var(--bad)">KEV</span> = in CISA KEV; <span style="color:var(--bad)">ITW</span> = exploited in the wild; <span style="color:var(--warn)">PoC</span> = public exploit; MSRC = Microsoft advisory published.</p>
       <div class="scroll"><table>
-        <thead><tr><th>Score</th><th>Seen</th><th>Severity</th><th>ID</th><th>Title</th><th>Signals</th><th>Suggested action</th></tr></thead>
+        <thead><tr><th>Score</th><th>Seen</th><th>Severity</th><th>ID</th><th>Title</th><th>Target app</th><th>Target OS</th><th>Signals</th><th>Suggested action</th></tr></thead>
         <tbody id="all"></tbody>
       </table></div>
       <div class="empty" id="empty-all" hidden>No findings in the last 24 hours.</div>
@@ -180,7 +184,22 @@
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function sv(s) { return SEV[s] || "--muted"; }
   function sevPill(s) { var p = el("span", "pill", s || ""); var t = sv(s); p.style.color = "var(" + t + ")"; p.style.border = "1px solid var(" + t + ")"; return p; }
-  function titleCell(f) { var td = el("td"); if (f.url) { var a = el("a", null, f.title || f.key); a.href = f.url; a.target = "_blank"; a.rel = "noopener noreferrer"; td.appendChild(a); } else td.textContent = f.title || f.key; return td; }
+  function titleCell(f) { var td = el("td", "ttl"); if (f.url) { var a = el("a", null, f.title || f.key); a.href = f.url; a.target = "_blank"; a.rel = "noopener noreferrer"; td.appendChild(a); } else td.textContent = f.title || f.key; return td; }
+  function appCell(f) {
+    var td = el("td", "app"), name = f.product || f.vendor;
+    if (!name) { td.textContent = "—"; td.classList.add("na"); return td; }
+    td.appendChild(el("div", null, name));
+    if (f.product && f.vendor) td.appendChild(el("div", "vend", f.vendor));
+    return td;
+  }
+  function osCell(f) {
+    var td = el("td", "oscell"), list = Array.isArray(f.os) ? f.os : (f.os ? [f.os] : []);
+    if (!list.length) { td.textContent = "—"; td.classList.add("na"); return td; }
+    var wrap = el("div", "badges");
+    list.forEach(function (o) { wrap.appendChild(el("span", "badge b-os", o)); });
+    td.appendChild(wrap);
+    return td;
+  }
 
   async function load() {
     try {
@@ -231,8 +250,10 @@
     ahead.forEach(function (f) {
       var tr = el("tr");
       var sev = el("td"); sev.appendChild(sevPill(f.severity)); tr.appendChild(sev);
-      tr.appendChild(el("td", null, f.key));
+      tr.appendChild(el("td", "idc", f.key));
       tr.appendChild(titleCell(f));
+      tr.appendChild(appCell(f));
+      tr.appendChild(osCell(f));
       tr.appendChild(el("td", "why", f.why));
       tr.appendChild(el("td", "act", f.action));
       detail.appendChild(tr);
@@ -246,8 +267,10 @@
       tr.appendChild(el("td", "n", f.score));
       tr.appendChild(el("td", "when", fmtWhen(f.last_seen)));
       var sev = el("td"); sev.appendChild(sevPill(f.severity)); tr.appendChild(sev);
-      tr.appendChild(el("td", null, f.key));
+      tr.appendChild(el("td", "idc", f.key));
       tr.appendChild(titleCell(f));
+      tr.appendChild(appCell(f));
+      tr.appendChild(osCell(f));
       var sig = el("td"); var badges = el("div", "badges");
       if (f.ahead === "yes") badges.appendChild(el("span", "badge b-ahead", "Ahead"));
       if (f.kev) badges.appendChild(el("span", "badge b-kev", "KEV"));

@@ -56,6 +56,13 @@ def load_json(path, default):
         return default
 
 
+def os_list(f):
+    v = f.get("os")
+    if isinstance(v, str):
+        v = [v]
+    return [str(x).strip() for x in (v or []) if str(x).strip()]
+
+
 def parse_ts(value):
     if not value:
         return None
@@ -153,6 +160,9 @@ def main():
             "poc": "yes" if sig.get("poc_public") else "",
             "kev": "yes" if sig.get("kev") else "",
             "msrc": sig.get("msrc_published"),
+            "vendor": (f.get("vendor") or "").strip(),
+            "product": (f.get("product") or "").strip(),
+            "os": os_list(f),
         })
     rows.sort(key=lambda r: -r["score"])
 
