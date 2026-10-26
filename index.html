@@ -355,19 +355,22 @@
   document.getElementById("item-source").addEventListener("change", renderItems);
 
   var TABS = ["ahead", "all", "items"];
-  function selectTab(which) {
+  function selectTab(which, keepHash) {
     if (TABS.indexOf(which) < 0) which = "ahead";
     TABS.forEach(function (t) {
       document.getElementById("tab-" + t).setAttribute("aria-selected", String(t === which));
       document.getElementById("panel-" + t).hidden = t !== which;
     });
-    if (location.hash.slice(1) !== which) history.replaceState(null, "", "#" + which);
+    if (!keepHash && location.hash.slice(1) !== which) history.replaceState(null, "", "#" + which);
   }
   TABS.forEach(function (t) { document.getElementById("tab-" + t).addEventListener("click", function () { selectTab(t); }); });
-  selectTab(location.hash.slice(1));
+  // Leave #toggle-goatcounter (GoatCounter's skip-my-visits switch) in the URL for count.js to read.
+  var toggling = location.hash === "#toggle-goatcounter";
+  selectTab(toggling ? "ahead" : location.hash.slice(1), toggling);
 
   load();
   setInterval(load, 10 * 60 * 1000);
 </script>
+<script data-goatcounter="https://radarcounter.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
