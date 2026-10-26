@@ -21,6 +21,10 @@ ITEM_WINDOW_DAYS = 2
 ITEM_CAP = 800
 # Runs fire 8h and 16h apart, so 23h back from the current run spans exactly the last two runs.
 FINDING_WINDOW_HOURS = 23
+# A finding leaves the board this long after Radar first saw it, even if the agent keeps
+# re-reporting it. history.json remembers first sightings so expired findings stay gone.
+FINDING_MAX_AGE_DAYS = 5
+HISTORY_DAYS = 60
 
 HOT_RE = re.compile(r"in the wild|actively exploited|exploited|0-?day|zero[- ]day", re.I)
 POC_RE = re.compile(r"\bpoc\b|proof[- ]of[- ]concept|exploit", re.I)
@@ -80,23 +84,33 @@ def merge_findings(out_dir, rows, run_at):
     seen = run_at or now.isoformat(timespec="seconds")
     # Rows written before last_seen existed belong to whichever run wrote them.
     legacy = load_json(os.path.join(out_dir, "meta.json"), {}).get("run_at") or seen
+    hist_path = os.path.join(out_dir, "history.json")
+    hist = load_json(hist_path, {})  # key -> first_seen, kept after a finding expires
     by = {}
     for r in load_json(os.path.join(out_dir, "findings.json"), []):
         k = r.get("key") or r.get("title")
         if k:
             r.setdefault("last_seen", legacy)
-            r.setdefault("first_seen", r["last_seen"])
+            r.setdefault("first_seen", hist.get(k) or r["last_seen"])
             by[k] = r
+            hist.setdefault(k, r["first_seen"])
     for r in rows:
         k = r.get("key") or r.get("title")
         if not k:
             continue
-        r["first_seen"] = by.get(k, {}).get("first_seen") or seen
+        r["first_seen"] = by.get(k, {}).get("first_seen") or hist.get(k) or seen
         r["last_seen"] = seen
         by[k] = r
-    cutoff = anchor - timedelta(hours=FINDING_WINDOW_HOURS)
-    kept = [r for r in by.values() if (parse_ts(r.get("last_seen")) or anchor) >= cutoff]
+        hist.setdefault(k, r["first_seen"])
+    seen_cut = anchor - timedelta(hours=FINDING_WINDOW_HOURS)
+    age_cut = anchor - timedelta(days=FINDING_MAX_AGE_DAYS)
+    kept = [r for r in by.values()
+            if (parse_ts(r.get("last_seen")) or anchor) >= seen_cut
+            and (parse_ts(r.get("first_seen")) or anchor) >= age_cut]
     kept.sort(key=lambda r: -(r.get("score") or 0))
+    hist_cut = anchor - timedelta(days=HISTORY_DAYS)
+    hist = {k: v for k, v in hist.items() if (parse_ts(v) or anchor) >= hist_cut}
+    json.dump(hist, open(hist_path, "w", encoding="utf-8"), ensure_ascii=False)
     return kept
 
 
