@@ -10,10 +10,10 @@ State keeps a per-source watermark plus a short-lived seen-hash set, sized to st
 well under the 100 KB memory-store file limit.
 """
 import argparse
-import csv
 import hashlib
 import html
 import json
+import math
 import os
 import re
 import sys
@@ -104,10 +104,11 @@ SOURCES = [
     # Threat infrastructure (abuse.ch): summarized per run. Only CVE-tagged IOCs become
     # items - a CVE seen in live malware infrastructure is evidence of exploitation.
     # IOC values (malware URLs, IPs, hashes) are never copied into the output.
-    {"name": "URLhaus", "kind": "urlhaus", "tier": "threat-infra", "timeout": 90,
-     "home": "https://urlhaus.abuse.ch/", "url": "https://urlhaus.abuse.ch/downloads/csv_recent/"},
-    {"name": "ThreatFox", "kind": "threatfox", "tier": "threat-infra", "timeout": 90,
-     "home": "https://threatfox.abuse.ch/", "url": "https://threatfox.abuse.ch/export/csv/recent/"},
+    # URLhaus and ThreatFox retired their open CSV exports; their APIs take a free abuse.ch Auth-Key.
+    {"name": "URLhaus", "kind": "urlhaus", "tier": "threat-infra", "key_env": "ABUSECH_AUTH_KEY", "timeout": 90,
+     "home": "https://urlhaus.abuse.ch/", "url": "https://urlhaus-api.abuse.ch/v1/urls/recent/"},
+    {"name": "ThreatFox", "kind": "threatfox", "tier": "threat-infra", "key_env": "ABUSECH_AUTH_KEY", "timeout": 90,
+     "home": "https://threatfox.abuse.ch/", "url": "https://threatfox-api.abuse.ch/api/v1/"},
     {"name": "Feodo Tracker", "kind": "feodo", "tier": "threat-infra",
      "home": "https://feodotracker.abuse.ch/",
      "url": "https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.json"},
@@ -122,6 +123,8 @@ SOURCES = [
 NOISE_TAGS = {"none", "32-bit", "64-bit", "elf", "exe", "dll", "sh", "bash", "script", "zip", "rar",
               "mips", "mipsel", "arm", "arm7", "aarch64", "x86", "x86-64", "powerpc", "sparc", "m68k",
               "sh4", "ascii", "c2", "payload", "botnet", "honeypot", "cowrie", "ua-wget"}
+# Some tags are the IOC itself (an IP written 45-61-161-85); never echo those.
+IP_TAG_RE = re.compile(r"\d{1,3}(?:[.-]\d{1,3}){3}")
 
 
 CTRL_RE = re.compile(rb"[\x00-\x08\x0b\x0c\x0e-\x1f]")  # illegal in XML 1.0; some feeds ship them
@@ -129,8 +132,8 @@ CTRL_RE = re.compile(rb"[\x00-\x08\x0b\x0c\x0e-\x1f]")  # illegal in XML 1.0; so
 _reddit_lock = threading.Lock()
 
 
-def fetch(url, timeout=30, headers=None):
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*", **(headers or {})})
+def fetch(url, timeout=30, headers=None, data=None):
+    req = urllib.request.Request(url, data=data, headers={"User-Agent": UA, "Accept": "*/*", **(headers or {})})
     if "reddit.com" in url:
         with _reddit_lock:
             time.sleep(2)
@@ -153,8 +156,8 @@ def parse_dt(value):
     try:
         dt = parsedate_to_datetime(value)
     except (TypeError, ValueError):
-        try:
-            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        try:  # abuse.ch APIs stamp "2026-10-28 12:00:00 UTC"
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00").removesuffix(" UTC"))
         except ValueError:
             return None
     if dt.tzinfo is None:
@@ -283,24 +286,26 @@ def parse_hn(src, since):
     return out
 
 
-def abusech_rows(src, since, time_col):
-    """abuse.ch CSV exports: '#' banner, column names on the last commented line with commas."""
-    raw = fetch(src["url"], timeout=src.get("timeout", 30)).decode("utf-8", "replace")
-    header, body = None, []
-    for line in raw.splitlines():
-        if line.startswith("#"):
-            if "," in line:
-                header = next(csv.reader([line.lstrip("# ")], skipinitialspace=True))
-        elif line.strip():
-            body.append(line)
-    if not header:
-        raise ValueError("no column header in export")
-    rows = [dict(zip(header, r)) for r in csv.reader(body, skipinitialspace=True)]
+def abusech_rows(src, since, rows_key, time_col, query=None):
+    """abuse.ch APIs: rows flattened to strings (tag lists comma-joined), kept from `since` on."""
+    headers, body = {"Auth-Key": os.environ[src["key_env"]]}, None
+    if query is not None:  # ThreatFox takes a JSON POST; URLhaus a plain GET
+        headers["Content-Type"] = "application/json"
+        body = json.dumps(query).encode()
+    data = json.loads(fetch(src["url"], timeout=src.get("timeout", 30), headers=headers, data=body))
+    status = data.get("query_status")
+    if status == "no_results":
+        return []
+    if status != "ok":
+        raise ValueError(f"query_status: {status}")
+    rows = [{k: ",".join(map(str, v)) if isinstance(v, list) else "" if v is None else str(v)
+             for k, v in r.items() if not isinstance(v, dict)} for r in data.get(rows_key) or []]
     return [r for r in rows if (parse_dt(r.get(time_col)) or since) >= since]
 
 
 def families(tags):
-    return [t for t in (x.strip() for x in tags) if t and t.lower() not in NOISE_TAGS and not CVE_RE.fullmatch(t)]
+    return [t for t in (x.strip() for x in tags)
+            if t and t.lower() not in NOISE_TAGS and not CVE_RE.fullmatch(t) and not IP_TAG_RE.fullmatch(t)]
 
 
 def threat_summary(src, label, heading, rows, family_of):
@@ -332,18 +337,23 @@ def threat_cves(src, rows, time_col, family_of, link_of):
 
 
 def parse_urlhaus(src, since):
-    rows = abusech_rows(src, since, "dateadded")
+    rows = abusech_rows(src, since, "urls", "date_added")
     fam = lambda r: families((r.get("tags") or "").split(","))
-    return threat_summary(src, "new malware URLs", "Top tags", rows, fam) + threat_cves(
-        src, rows, "dateadded", fam, lambda cve, rs: rs[0].get("urlhaus_link") or src["home"])
+    out = threat_summary(src, "new malware URLs", "Top tags", rows, fam)
+    if len(rows) >= 1000:  # the API returns at most the latest 1000 URLs
+        out[0]["text"] = clean(out[0]["text"] + " (capped: the API returns only the latest 1000)")
+    return out + threat_cves(
+        src, rows, "date_added", fam, lambda cve, rs: rs[0].get("urlhaus_reference") or src["home"])
 
 
 def parse_threatfox(src, since):
-    rows = abusech_rows(src, since, "first_seen_utc")
+    # get_iocs looks back whole days (1-7); 2 covers the longest gap between scheduled runs.
+    days = max(1, min(2, math.ceil((datetime.now(timezone.utc) - since).total_seconds() / 86400)))
+    rows = abusech_rows(src, since, "data", "first_seen", {"query": "get_iocs", "days": days})
     fam = lambda r: families([r.get("malware_printable") or ""] + (r.get("tags") or "").split(","))
     return threat_summary(src, "new IOCs", "Top malware", rows,
                           lambda r: families([r.get("malware_printable") or ""])) + threat_cves(
-        src, rows, "first_seen_utc", fam, lambda cve, rs: f"https://threatfox.abuse.ch/browse/tag/{cve}/")
+        src, rows, "first_seen", fam, lambda cve, rs: f"https://threatfox.abuse.ch/browse/tag/{cve}/")
 
 
 def parse_feodo(src, since):
