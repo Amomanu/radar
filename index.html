@@ -29,8 +29,9 @@
   .sub { color: var(--muted); margin: 8px 0 0; max-width: 62ch; }
   .stamp { color: var(--muted); font-size: 12px; margin-left: auto; text-align: right; }
 
-  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
-  .tab { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 10px 14px; color: var(--muted); font: inherit; font-weight: 500; cursor: pointer; }
+  .tabs { display: flex; gap: 4px; box-shadow: inset 0 -1px 0 var(--line); overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; flex: 0 0 auto; white-space: nowrap; padding: 10px 14px; color: var(--muted); font: inherit; font-weight: 500; cursor: pointer; }
   .tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
   .tab .ct { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 6px; font-size: 12px; }
 
@@ -81,6 +82,16 @@
   .chip .c { color: var(--muted); font-variant-numeric: tabular-nums; }
   .empty { color: var(--muted); padding: 10px 0; }
   .foot { color: var(--muted); font-size: 12px; text-align: center; }
+  .btn { appearance: none; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; font: inherit; cursor: pointer; }
+  .btn:hover { border-color: var(--muted); }
+  .btn-p { border-color: var(--accent); color: var(--accent); }
+  .controls input.short { flex: 1 1 150px; }
+  .chip .w { color: var(--muted); }
+  .chip .x { appearance: none; background: none; border: 0; color: var(--muted); cursor: pointer; font: inherit; font-size: 14px; line-height: 1; padding: 0 0 0 2px; }
+  .chip .x:hover { color: var(--bad); }
+  .mine { max-width: 22ch; } .mine .w { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .ranges { max-width: 36ch; } .ranges .src { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
   [hidden] { display: none !important; }
 
   @media (prefers-reduced-motion: no-preference) {
@@ -121,6 +132,7 @@
     <button class="tab" id="tab-ahead" role="tab" aria-selected="true" aria-controls="panel-ahead">Ahead of Microsoft<span class="ct" id="ct-ahead"></span></button>
     <button class="tab" id="tab-all" role="tab" aria-selected="false" aria-controls="panel-all">All findings<span class="ct" id="ct-all"></span></button>
     <button class="tab" id="tab-items" role="tab" aria-selected="false" aria-controls="panel-items">Everything<span class="ct" id="ct-items"></span></button>
+    <button class="tab" id="tab-stack" role="tab" aria-selected="false" aria-controls="panel-stack">My stack<span class="ct" id="ct-stack"></span></button>
   </div>
 
   <div id="panel-ahead" role="tabpanel" style="display:flex;flex-direction:column;gap:24px;">
@@ -172,6 +184,48 @@
         <thead><tr><th>When</th><th>Source</th><th>CVEs</th><th>Title</th></tr></thead>
         <tbody id="items"></tbody>
       </table></div>
+    </section>
+  </div>
+
+  <div id="panel-stack" role="tabpanel" hidden style="display:flex;flex-direction:column;gap:24px;">
+    <section class="card">
+      <h2>Your stack</h2>
+      <p class="note">Add the operating systems, kernels, apps and devices you run, with their versions, and Radar checks every finding and raw item it holds against them. Name products the way the vendor does (FortiOS, Windows Server 2022, Exchange Server 2019) and add a Linux kernel as its own line. The list is saved only in this browser and never leaves this page.</p>
+      <form class="controls" id="stack-form" autocomplete="off">
+        <input id="st-name" list="st-names" placeholder="Product, e.g. FortiOS, Windows Server 2022, Linux kernel" aria-label="Product" required>
+        <input id="st-ver" class="short" placeholder="Version, e.g. 7.4.3" aria-label="Version">
+        <input id="st-where" class="short" placeholder="Where (optional)" aria-label="Where it runs">
+        <button class="btn btn-p" type="submit">Add</button>
+      </form>
+      <datalist id="st-names"></datalist>
+      <div class="chips" id="stack-list"></div>
+      <div class="empty" id="stack-none">Nothing added yet.</div>
+      <div class="controls" style="margin:14px 0 0;">
+        <button class="btn" type="button" id="st-export">Export list</button>
+        <button class="btn" type="button" id="st-import">Import list</button>
+        <input type="file" id="st-file" accept=".json,application/json" hidden>
+        <span class="muted" id="st-msg"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>What affects it</h2>
+      <p class="note"><span style="color:var(--bad)">Affected</span> = your version is inside a vulnerable range the sources published. <span style="color:var(--warn)">Check</span> = Radar matched the product but can't decide: no version entered, no ranges published yet, or a distro kernel (distros backport fixes). <span style="color:var(--muted)">Not in ranges</span> = your version is outside every listed range. Versions only: read the advisory for conditions, such as a feature that has to be turned on.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Verdict</th><th>Yours</th><th>Severity</th><th>ID</th><th>Title</th><th>Affected versions</th><th>Target OS</th><th>Suggested action</th></tr></thead>
+        <tbody id="stack-hits"></tbody>
+      </table></div>
+      <div class="empty" id="empty-stack" hidden></div>
+    </section>
+
+    <section class="card">
+      <h2>Raw feed mentions</h2>
+      <p class="note">Items from the Everything tab whose title or summary names one of your products. These aren't scored or version-checked.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>When</th><th>Yours</th><th>Source</th><th>CVEs</th><th>Title</th></tr></thead>
+        <tbody id="stack-items"></tbody>
+      </table></div>
+      <div class="empty" id="empty-stack-items" hidden>No raw items name your products.</div>
     </section>
   </div>
 
@@ -285,6 +339,7 @@
 
     renderSources();
     renderItems();
+    renderStack();
   }
 
   function renderSources() {
@@ -354,13 +409,204 @@
   document.getElementById("item-search").addEventListener("input", renderItems);
   document.getElementById("item-source").addEventListener("change", renderItems);
 
-  var TABS = ["ahead", "all", "items"];
+  // My stack: the list lives only in this browser (localStorage) and is matched here against the public data.
+  var STACK_KEY = "radar-stack-v1";
+  var GENERIC = {};
+  "server client enterprise edition standard professional pro home community desktop web app apps application service services suite the for and of on with version versions update build release lts esr os x64 x86 arm64 bit".split(" ").forEach(function (w) { GENERIC[w] = 1; });
+  var DISTRO_RE = /ubuntu|debian|rhel|red ?hat|centos|rocky|alma|suse|fedora|amazon|azure linux|oracle linux/i;
+  var VERDICT = { aff: ["Affected", "--bad"], check: ["Check", "--warn"], out: ["Not in ranges", "--muted"] };
+  var VORDER = { aff: 0, check: 1, out: 2 };
+
+  function cleanEntry(e) {
+    if (!e || typeof e !== "object") return null;
+    var c = { name: String(e.name || "").trim().slice(0, 120), version: String(e.version || "").trim().slice(0, 60), where: String(e.where || "").trim().slice(0, 60) };
+    return c.name ? c : null;
+  }
+  function loadStack() {
+    try { var v = JSON.parse(localStorage.getItem(STACK_KEY) || "[]"); return Array.isArray(v) ? v.map(cleanEntry).filter(Boolean) : []; }
+    catch (e) { return []; }
+  }
+  function saveStack() { try { localStorage.setItem(STACK_KEY, JSON.stringify(STACK)); } catch (e) {} }
+  var STACK = loadStack();
+
+  function words(s) { return String(s || "").toLowerCase().match(/[a-z0-9]+/g) || []; }
+  function nums(s) { return words(s).filter(function (w) { return /\d/.test(w); }); }
+  // The words an entry has to match: names, not version numbers or generic words. Any kernel entry means the Linux kernel.
+  function needles(name) {
+    var w = words(name);
+    if (w.indexOf("kernel") >= 0 && w.indexOf("windows") < 0) return ["linux", "kernel"];
+    return w.filter(function (x) { return !GENERIC[x] && !/\d/.test(x) && x.length > 1; });
+  }
+  function hasAll(hay, need) { return need.length > 0 && need.every(function (x) { return hay.indexOf(x) >= 0; }); }
+  // Numbered editions must agree, so Windows Server 2022 never takes a Windows 11 range.
+  function sameEdition(name, product) {
+    var y = nums(product);
+    return !y.length || nums(name).some(function (n) { return y.indexOf(n) >= 0; });
+  }
+  function vparts(v) { return (String(v).toLowerCase().match(/\d+|[a-z]+/g) || []).map(function (p) { return /^\d/.test(p) ? Number(p) : p; }); }
+  function vcmp(a, b) {
+    var x = vparts(a), y = vparts(b);
+    for (var i = 0; i < Math.max(x.length, y.length); i++) {
+      var p = i < x.length ? x[i] : 0, q = i < y.length ? y[i] : 0;
+      if (p === q) continue;
+      if (typeof p === typeof q) return p < q ? -1 : 1;
+      return typeof p === "number" ? 1 : -1;  // 7.4.0 sorts after 7.4.0-rc1
+    }
+    return 0;
+  }
+  function inRange(v, r) {
+    if (r.from && vcmp(v, r.from) < 0) return false;
+    if (r.before) return vcmp(v, r.before) < 0;
+    if (r.through) return vcmp(v, r.through) <= 0;
+    return !!r.from;  // a start and no end: no fix yet
+  }
+  // uname -r on a distro looks like 6.8.0-45-generic or 5.14.0-427.el9: anything past the upstream number but -rcN.
+  function distroKernel(e) { return DISTRO_RE.test(e.name) || /-(?!rc\d)|\.el\d|\+deb/i.test(e.version); }
+  function stackVerdict(entry, f) {
+    var need = needles(entry.name), ranges = f.affected || [];
+    var hay = words([f.vendor, f.product].concat(ranges.map(function (r) { return r.product; })).join(" "));
+    if (!hasAll(hay, need)) return null;
+    var mine = ranges.filter(function (r) { return hasAll(words(r.product), need) && sameEdition(entry.name, r.product); });
+    if (!mine.length && (f.os || []).indexOf("Cloud (SaaS)") >= 0)
+      return { v: "check", ranges: mine, why: "Hosted service: check the vendor's notice for your account." };
+    if (!entry.version) return { v: "check", ranges: mine, why: "Add your version to check it." };
+    if (need.join(" ") === "linux kernel" && distroKernel(entry))
+      return { v: "check", ranges: mine, why: "Distro kernels carry backported fixes, so check your distro's advisory." };
+    if (!mine.length) return { v: "check", ranges: mine, why: ranges.length ? "The listed ranges are for other products or editions." : "No version ranges published yet." };
+    return { v: mine.some(function (r) { return inRange(entry.version, r); }) ? "aff" : "out", ranges: mine };
+  }
+  function itemHits(entry, it) { return hasAll(words(it.title + " " + it.text), needles(entry.name)); }
+  function verdictPill(v) {
+    var d = VERDICT[v], p = el("span", "pill", d[0]);
+    p.style.color = "var(" + d[1] + ")"; p.style.border = "1px solid var(" + d[1] + ")"; p.style.textTransform = "none";
+    return p;
+  }
+  function fmtRange(r) {
+    var p = [];
+    if (r.from) p.push("from " + r.from);
+    p.push(r.before ? "fixed in " + r.before : r.through ? "through " + r.through : "no fix listed");
+    return r.product + ": " + p.join(", ");
+  }
+  function label(e) { return e.name + (e.version ? " " + e.version : ""); }
+
+  function renderStack() {
+    var list = document.getElementById("stack-list"); list.replaceChildren();
+    STACK.forEach(function (e, i) {
+      var chip = el("span", "chip");
+      chip.appendChild(el("span", null, label(e)));
+      if (e.where) chip.appendChild(el("span", "w", e.where));
+      if (!needles(e.name).length) chip.appendChild(el("span", "w", "too generic to match"));
+      var x = el("button", "x", "×"); x.type = "button"; x.setAttribute("aria-label", "Remove " + label(e));
+      x.addEventListener("click", function () { STACK.splice(i, 1); saveStack(); renderStack(); });
+      chip.appendChild(x); list.appendChild(chip);
+    });
+    document.getElementById("stack-none").hidden = STACK.length > 0;
+
+    var names = {};
+    STATE.findings.forEach(function (f) {
+      (f.affected || []).forEach(function (r) { names[r.product] = 1; });
+      (f.os || []).forEach(function (o) { if (o !== "Any" && o !== "Cloud (SaaS)") names[o] = 1; });
+      if (f.vendor && f.vendor.length < 28 && f.vendor.indexOf("(") < 0) names[f.vendor] = 1;
+    });
+    var dl = document.getElementById("st-names"); dl.replaceChildren();
+    Object.keys(names).sort().forEach(function (n) { var o = el("option"); o.value = n; dl.appendChild(o); });
+
+    var hits = [];
+    STACK.forEach(function (e) {
+      STATE.findings.forEach(function (f) { var r = stackVerdict(e, f); if (r) hits.push({ e: e, f: f, r: r }); });
+    });
+    hits.sort(function (a, b) { return VORDER[a.r.v] - VORDER[b.r.v] || (b.f.score || 0) - (a.f.score || 0); });
+    var frag = document.createDocumentFragment();
+    hits.forEach(function (h) {
+      var tr = el("tr");
+      var vd = el("td"); vd.appendChild(verdictPill(h.r.v)); tr.appendChild(vd);
+      var mine = el("td", "mine"); mine.appendChild(el("div", null, label(h.e)));
+      if (h.e.where) mine.appendChild(el("div", "w", h.e.where));
+      tr.appendChild(mine);
+      var sev = el("td"); sev.appendChild(sevPill(h.f.severity)); tr.appendChild(sev);
+      tr.appendChild(el("td", "idc", h.f.key));
+      tr.appendChild(titleCell(h.f));
+      var rg = el("td", "ranges");
+      (h.r.ranges.length ? h.r.ranges : (h.f.affected || [])).forEach(function (r) { rg.appendChild(el("div", null, fmtRange(r))); });
+      if (h.f.product) rg.appendChild(el("div", "src", h.f.product));
+      if (h.r.why) rg.appendChild(el("div", "hint", h.r.why));
+      tr.appendChild(rg);
+      tr.appendChild(osCell(h.f));
+      tr.appendChild(el("td", "act", h.f.action));
+      frag.appendChild(tr);
+    });
+    document.getElementById("stack-hits").replaceChildren(frag);
+    document.getElementById("ct-stack").textContent = STACK.length ? hits.filter(function (h) { return h.r.v !== "out"; }).length : "";
+    var empty = document.getElementById("empty-stack");
+    empty.hidden = hits.length > 0;
+    empty.textContent = STACK.length ? "Nothing Radar holds right now matches your stack." : "Add something to your stack to see what affects it.";
+
+    var ifrag = document.createDocumentFragment(), n = 0;
+    (STATE.items || []).forEach(function (it) {
+      var who = STACK.filter(function (e) { return itemHits(e, it); });
+      if (!who.length) return;
+      n++;
+      var tr = el("tr");
+      tr.appendChild(el("td", "when", fmtWhen(it.published || it.seen_at)));
+      // Raw items aren't version-checked, so name each product once.
+      tr.appendChild(el("td", "mine", who.map(function (e) { return e.name; }).filter(function (n, i, a) { return a.indexOf(n) === i; }).join(", ")));
+      tr.appendChild(el("td", null, it.source));
+      tr.appendChild(el("td", "cve", (it.cves || []).join(", ")));
+      var t = el("td");
+      if (it.url) { var a = el("a", null, it.title || "(untitled)"); a.href = it.url; a.target = "_blank"; a.rel = "noopener noreferrer"; t.appendChild(a); }
+      else t.appendChild(document.createTextNode(it.title || ""));
+      if (it.text) t.appendChild(el("div", "hint", it.text));
+      tr.appendChild(t);
+      ifrag.appendChild(tr);
+    });
+    document.getElementById("stack-items").replaceChildren(ifrag);
+    document.getElementById("empty-stack-items").hidden = n > 0 || !STACK.length;
+  }
+
+  function stackMsg(t) { document.getElementById("st-msg").textContent = t; }
+  // Adds entries from an exported list, skipping ones already here.
+  function importStack(text) {
+    var data = JSON.parse(text);
+    if (!Array.isArray(data)) throw new Error("not a list");
+    var have = {}, added = 0;
+    STACK.forEach(function (e) { have[JSON.stringify(e)] = 1; });
+    data.map(cleanEntry).forEach(function (e) {
+      if (e && !have[JSON.stringify(e)]) { STACK.push(e); have[JSON.stringify(e)] = 1; added++; }
+    });
+    saveStack(); renderStack();
+    return added;
+  }
+  document.getElementById("stack-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var e = cleanEntry({ name: document.getElementById("st-name").value, version: document.getElementById("st-ver").value, where: document.getElementById("st-where").value });
+    if (!e) return;
+    STACK.push(e); saveStack(); renderStack();
+    // Keep "Where" filled so several items for one place go in quickly.
+    document.getElementById("st-name").value = ""; document.getElementById("st-ver").value = "";
+    document.getElementById("st-name").focus();
+  });
+  document.getElementById("st-export").addEventListener("click", function () {
+    var a = el("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(STACK, null, 1)], { type: "application/json" }));
+    a.download = "radar-stack.json"; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  });
+  document.getElementById("st-import").addEventListener("click", function () { document.getElementById("st-file").click(); });
+  document.getElementById("st-file").addEventListener("change", function (ev) {
+    var file = ev.target.files[0]; ev.target.value = "";
+    if (!file) return;
+    file.text().then(function (t) { stackMsg("Added " + importStack(t) + " from " + file.name + "."); })
+      .catch(function () { stackMsg("That file isn't a Radar stack list."); });
+  });
+  renderStack();
+
+  var TABS = ["ahead", "all", "items", "stack"];
   function selectTab(which, keepHash) {
     if (TABS.indexOf(which) < 0) which = "ahead";
     TABS.forEach(function (t) {
       document.getElementById("tab-" + t).setAttribute("aria-selected", String(t === which));
       document.getElementById("panel-" + t).hidden = t !== which;
     });
+    document.getElementById("tab-" + which).scrollIntoView({ block: "nearest", inline: "nearest" });
     if (!keepHash && location.hash.slice(1) !== which) history.replaceState(null, "", "#" + which);
   }
   TABS.forEach(function (t) { document.getElementById("tab-" + t).addEventListener("click", function () { selectTab(t); }); });

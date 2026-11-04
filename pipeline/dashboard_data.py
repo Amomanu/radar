@@ -2,7 +2,8 @@
 """Build the dashboard's data files from the latest scan.
 
 Writes findings.json (every scored finding from the last two runs, flagged
-ahead/kev/itw/poc/msrc, latest values winning), sources.json and meta.json. With
+ahead/kev/itw/poc/msrc, with affected version ranges, latest values winning),
+sources.json and meta.json. With
 --items, also maintains items.json: a rolling 2-day list of every raw item the
 scanner caught, for the "Everything" tab.
 
@@ -67,6 +68,18 @@ def os_list(f):
     return [str(x).strip() for x in (v or []) if str(x).strip()]
 
 
+def affected_list(f):
+    """Vulnerable version ranges as the agent read them: product plus from / before / through."""
+    out = []
+    for r in f.get("affected") or []:
+        if not isinstance(r, dict):
+            continue
+        r = {k: str(r.get(k) or "").strip()[:80] for k in ("product", "from", "before", "through")}
+        if r["product"] and (r["from"] or r["before"] or r["through"]):
+            out.append(r)
+    return out[:12]
+
+
 def parse_ts(value):
     if not value:
         return None
@@ -98,8 +111,11 @@ def merge_findings(out_dir, rows, run_at):
         k = r.get("key") or r.get("title")
         if not k:
             continue
-        r["first_seen"] = by.get(k, {}).get("first_seen") or hist.get(k) or seen
+        prior = by.get(k, {})
+        r["first_seen"] = prior.get("first_seen") or hist.get(k) or seen
         r["last_seen"] = seen
+        if not r.get("affected") and prior.get("affected"):
+            r["affected"] = prior["affected"]  # a run that skipped the versions keeps the earlier ones
         by[k] = r
         hist.setdefault(k, r["first_seen"])
     seen_cut = anchor - timedelta(hours=FINDING_WINDOW_HOURS)
@@ -177,6 +193,7 @@ def main():
             "vendor": (f.get("vendor") or "").strip(),
             "product": (f.get("product") or "").strip(),
             "os": os_list(f),
+            "affected": affected_list(f),
         })
     rows.sort(key=lambda r: -r["score"])
 
