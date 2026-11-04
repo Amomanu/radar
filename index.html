@@ -194,7 +194,7 @@
       <form class="controls" id="stack-form" autocomplete="off">
         <input id="st-name" list="st-names" placeholder="Product, e.g. FortiOS, Windows Server 2022, Linux kernel" aria-label="Product" required>
         <input id="st-ver" class="short" placeholder="Version, e.g. 7.4.3" aria-label="Version">
-        <input id="st-where" class="short" placeholder="Where (optional)" aria-label="Where it runs">
+        <input id="st-label" class="short" placeholder="Label (optional)" aria-label="Label">
         <button class="btn btn-p" type="submit">Add</button>
       </form>
       <datalist id="st-names"></datalist>
@@ -419,7 +419,7 @@
 
   function cleanEntry(e) {
     if (!e || typeof e !== "object") return null;
-    var c = { name: String(e.name || "").trim().slice(0, 120), version: String(e.version || "").trim().slice(0, 60), where: String(e.where || "").trim().slice(0, 60) };
+    var c = { name: String(e.name || "").trim().slice(0, 120), version: String(e.version || "").trim().slice(0, 60), label: String(e.label || "").trim().slice(0, 60) };
     return c.name ? c : null;
   }
   function loadStack() {
@@ -487,16 +487,16 @@
     p.push(r.before ? "fixed in " + r.before : r.through ? "through " + r.through : "no fix listed");
     return r.product + ": " + p.join(", ");
   }
-  function label(e) { return e.name + (e.version ? " " + e.version : ""); }
+  function entryText(e) { return e.name + (e.version ? " " + e.version : ""); }
 
   function renderStack() {
     var list = document.getElementById("stack-list"); list.replaceChildren();
     STACK.forEach(function (e, i) {
       var chip = el("span", "chip");
-      chip.appendChild(el("span", null, label(e)));
-      if (e.where) chip.appendChild(el("span", "w", e.where));
+      chip.appendChild(el("span", null, entryText(e)));
+      if (e.label) chip.appendChild(el("span", "w", e.label));
       if (!needles(e.name).length) chip.appendChild(el("span", "w", "too generic to match"));
-      var x = el("button", "x", "×"); x.type = "button"; x.setAttribute("aria-label", "Remove " + label(e));
+      var x = el("button", "x", "×"); x.type = "button"; x.setAttribute("aria-label", "Remove " + entryText(e));
       x.addEventListener("click", function () { STACK.splice(i, 1); saveStack(); renderStack(); });
       chip.appendChild(x); list.appendChild(chip);
     });
@@ -520,8 +520,8 @@
     hits.forEach(function (h) {
       var tr = el("tr");
       var vd = el("td"); vd.appendChild(verdictPill(h.r.v)); tr.appendChild(vd);
-      var mine = el("td", "mine"); mine.appendChild(el("div", null, label(h.e)));
-      if (h.e.where) mine.appendChild(el("div", "w", h.e.where));
+      var mine = el("td", "mine"); mine.appendChild(el("div", null, entryText(h.e)));
+      if (h.e.label) mine.appendChild(el("div", "w", h.e.label));
       tr.appendChild(mine);
       var sev = el("td"); sev.appendChild(sevPill(h.f.severity)); tr.appendChild(sev);
       tr.appendChild(el("td", "idc", h.f.key));
@@ -578,10 +578,10 @@
   }
   document.getElementById("stack-form").addEventListener("submit", function (ev) {
     ev.preventDefault();
-    var e = cleanEntry({ name: document.getElementById("st-name").value, version: document.getElementById("st-ver").value, where: document.getElementById("st-where").value });
+    var e = cleanEntry({ name: document.getElementById("st-name").value, version: document.getElementById("st-ver").value, label: document.getElementById("st-label").value });
     if (!e) return;
     STACK.push(e); saveStack(); renderStack();
-    // Keep "Where" filled so several items for one place go in quickly.
+    // Keep the label filled so several items for one place go in quickly.
     document.getElementById("st-name").value = ""; document.getElementById("st-ver").value = "";
     document.getElementById("st-name").focus();
   });
